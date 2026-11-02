@@ -47,15 +47,16 @@ jobs:
         run: |
           set -euo pipefail
           APK=candidate/MarketPro-v4.6.5-candidate-signed.apk
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             cp "$APK" MarketPro-v4.6.5-stable-signed.apk
             gh release create "$TAG" MarketPro-v4.6.5-stable-signed.apk \
+              -R "$GITHUB_REPOSITORY" \
               --target main --latest \
               --title 'Market Pro v4.6.5 — Sync Health Menu Font Fix' \
               --notes 'Stable Check For Updates release. Sync Health menu text now matches the other menu items, with bodyLarge font, Bold weight and dark blue (#123B66). Android QA and v4.6.4 to v4.6.5 in-place emulator upgrade have passed. Original signing certificate preserved. Financial, photo, device and real-time sync business logic unchanged. Do not uninstall.'
           fi
           mkdir -p verify
-          gh release download "$TAG" --pattern MarketPro-v4.6.5-stable-signed.apk --dir verify
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" --pattern MarketPro-v4.6.5-stable-signed.apk --dir verify
           cmp "$APK" verify/MarketPro-v4.6.5-stable-signed.apk
           test "$(sha256sum verify/MarketPro-v4.6.5-stable-signed.apk | cut -d' ' -f1)" = "$EXPECTED_SHA"
           echo "PASS: public stable APK byte-for-byte matches emulator verified signed binary."
