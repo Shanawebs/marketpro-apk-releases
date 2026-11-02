@@ -1,0 +1,17 @@
+name: Market Pro Public Release Runner Check
+on:
+  push:
+    paths:
+      - '.github/workflows/marketpro-public-runner-check.yml'
+permissions:
+  contents: read
+jobs:
+  public-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public release runner available
+        run: |
+          set -euo pipefail
+          echo 'PASS: Public GitHub Actions runner is working.'
+          test "${GITHUB_REPOSITORY}" = "Shanawebs/marketpro-apk-releases"
