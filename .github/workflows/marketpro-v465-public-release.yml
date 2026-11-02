@@ -1,0 +1,61 @@
+name: Market Pro v4.6.5 Public Verified Release
+on:
+  push:
+    paths:
+      - '.github/workflows/marketpro-v465-public-release.yml'
+permissions:
+  contents: write
+jobs:
+  publish-verified-signed-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_ZIP: "https://sdmntprcentralindia.oaiusercontent.com/files/00000000-2250-8208-bdb2-0fb9e6528a41/raw?se=2026-11-02T17%3A08%3A13Z&sp=r&sv=2026-02-06&sr=b&scid=fcb524ac-d092-5020-9857-837cf554e275&skoid=5939c452-ea83-4420-b5b4-21182254a5d3&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-11-02T01%3A50%3A29Z&ske=2026-11-03T01%3A50%3A29Z&sks=b&skv=2026-02-06&sig=Gy6EpWh/4Sw8YbeuIFrvsfpt2pzYyP7sLlAMWi2D3bM%3D"
+      EXPECTED_SHA: 68eb67304bb1ebc6aeb896439b03d7c34873a7e5afb307818f8444b40ae03f31
+      TAG: marketpro-stable-signed-v4.6.5
+    steps:
+      - name: Fetch exact signed emulator-tested artifact
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "Shanawebs/marketpro-apk-releases"
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 \
+            "$CANDIDATE_ZIP" -o /tmp/marketpro-v465-tested.zip
+          mkdir candidate
+          unzip -q /tmp/marketpro-v465-tested.zip -d candidate
+          (cd candidate && sha256sum -c SHA256SUMS)
+          test "$(sha256sum candidate/MarketPro-v4.6.5-candidate-signed.apk | cut -d' ' -f1)" = "$EXPECTED_SHA"
+          test "$(stat -c%s candidate/MarketPro-v4.6.5-candidate-signed.apk)" = 2049109
+      - name: Validate original signing certificate and in-place upgrade version
+        run: |
+          set -euo pipefail
+          SDK_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          test -x "$SDK_TOOLS/apksigner"
+          test -x "$SDK_TOOLS/aapt"
+          APK=candidate/MarketPro-v4.6.5-candidate-signed.apk
+          "$SDK_TOOLS/apksigner" verify "$APK"
+          "$SDK_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='lk.peliyagoda.marketpro.staging.fullapp' versionCode='465' versionName='4.6.5'"
+          curl --fail --location --retry 3 --max-time 120 \
+            -o baseline.apk 'https://github.com/Shanawebs/marketpro-apk-releases/releases/download/marketpro-stable-signed-v4.6.4/MarketPro-v4.6.4-stable-signed.apk'
+          echo '27f22af1b5fc948fea4543c12ccc120476e0d3ceb86cba880de7221d1b446076  baseline.apk' | sha256sum -c -
+          "$SDK_TOOLS/apksigner" verify baseline.apk
+          OLD="$("$SDK_TOOLS/apksigner" verify --print-certs baseline.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          NEW="$("$SDK_TOOLS/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          test -n "$OLD" && test "$OLD" = "$NEW"
+          echo "PASS: same application identity, higher version, same signing certificate"
+      - name: Publish exactly verified APK, never overwrite existing release
+        run: |
+          set -euo pipefail
+          APK=candidate/MarketPro-v4.6.5-candidate-signed.apk
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            cp "$APK" MarketPro-v4.6.5-stable-signed.apk
+            gh release create "$TAG" MarketPro-v4.6.5-stable-signed.apk \
+              --target main --latest \
+              --title 'Market Pro v4.6.5 — Sync Health Menu Font Fix' \
+              --notes 'Stable Check For Updates release. Sync Health menu text now matches the other menu items, with bodyLarge font, Bold weight and dark blue (#123B66). Android QA and v4.6.4 to v4.6.5 in-place emulator upgrade have passed. Original signing certificate preserved. Financial, photo, device and real-time sync business logic unchanged. Do not uninstall.'
+          fi
+          mkdir -p verify
+          gh release download "$TAG" --pattern MarketPro-v4.6.5-stable-signed.apk --dir verify
+          cmp "$APK" verify/MarketPro-v4.6.5-stable-signed.apk
+          test "$(sha256sum verify/MarketPro-v4.6.5-stable-signed.apk | cut -d' ' -f1)" = "$EXPECTED_SHA"
+          echo "PASS: public stable APK byte-for-byte matches emulator verified signed binary."
