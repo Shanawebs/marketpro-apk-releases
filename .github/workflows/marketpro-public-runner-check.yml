@@ -14,4 +14,5 @@ jobs:
         run: |
           set -euo pipefail
           echo 'PASS: Public GitHub Actions runner is working.'
+          echo 'Market Pro release runner diagnostic v2: no secrets, no release, no APK.'
           test "${GITHUB_REPOSITORY}" = "Shanawebs/marketpro-apk-releases"
